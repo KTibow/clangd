@@ -39,7 +39,7 @@ jobs:
       run: |
         sudo apt-get install jq
     - name: Clone scripts
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     # Choose the commit to build a release from.
     #
     # We want to avoid unbuildable revisions: choose the last green from CI.
@@ -149,7 +149,8 @@ jobs:
         - name: windows-x64
           runner: windows-2022
           preinstall: choco install ninja nasm
-          vcvars: C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat
+          vcvars: C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat
+          vcvars_arch: amd64
           cflags: /O2 /DNDEBUG
           cmake: >-
             "-DCMAKE_C_COMPILER=cl"
@@ -158,26 +159,30 @@ jobs:
             "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded"
             "-DLLVM_ENABLE_PDB=ON"
             "-DLLVM_PARALLEL_LINK_JOBS=1"
-          grpc_version: v1.36.3
+            "-Dabsl_DIR=$HOME/grpc-installation/lib/cmake/absl"
+          grpc_version: v1.54.3
           grpc_cmake: >-
             "-DgRPC_MSVC_STATIC_RUNTIME=ON"
           binary_extension: ".exe"
-        # Can be uncommented once gRPC is upgraded past v1.54.
-        # - name: windows-arm64
-        #   runner: windows-11-arm
-        #   preinstall: choco install ninja nasm
-        #   vcvars: C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat
-        #   cflags: /O2 /DNDEBUG
-        #   cmake: >-
-        #     "-DCMAKE_C_COMPILER=cl"
-        #     "-DCMAKE_CXX_COMPILER=cl"
-        #     "-DLLVM_ENABLE_ZLIB=OFF"
-        #     "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded"
-        #     "-DLLVM_ENABLE_PDB=ON"
-        #     "-DLLVM_PARALLEL_LINK_JOBS=1"
-        #   grpc_cmake: >-
-        #     "-DgRPC_MSVC_STATIC_RUNTIME=ON"
-        #   binary_extension: ".exe"
+        - name: windows-arm64
+          runner: windows-11-arm
+          preinstall: choco install ninja
+          vcvars: C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat
+          vcvars_arch: arm64
+          cflags: /O2 /DNDEBUG
+          cmake: >-
+            "-DCMAKE_C_COMPILER=cl"
+            "-DCMAKE_CXX_COMPILER=cl"
+            "-DLLVM_ENABLE_ZLIB=OFF"
+            "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded"
+            "-DLLVM_ENABLE_PDB=ON"
+            "-DLLVM_PARALLEL_LINK_JOBS=1"
+            "-Dabsl_DIR=$HOME/grpc-installation/lib/cmake/absl"
+          grpc_version: v1.54.3
+          grpc_cmake: >-
+            "-DgRPC_MSVC_STATIC_RUNTIME=ON"
+            "-DOPENSSL_NO_ASM=ON"
+          binary_extension: ".exe"
         - name: mac
           runner: macos-14
           preinstall: brew install ninja zlib p7zip
@@ -221,20 +226,14 @@ jobs:
             "-DgRPC_CARES_PROVIDER=package"
         - name: linux-arm64
           runner: ubuntu-24.04-arm
-          container: ubuntu:24.04
           preinstall: >-
-            apt-get update &&
-            apt-get install -y ninja-build libz-dev libc-ares-dev wget clang-10
-            software-properties-common p7zip-full curl &&
-            add-apt-repository ppa:git-core/ppa &&
-            wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add - &&
-            apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main' &&
-            apt-get update &&
-            apt-get install -y git cmake python3.8 python3.8-dev
+            sudo apt-get update &&
+            sudo apt-get install -y ninja-build libz-dev libc-ares-dev wget
+            clang p7zip-full curl git cmake python3 python3-dev
           cflags: -O3 -gline-tables-only -DNDEBUG -include $GITHUB_WORKSPACE/.github/workflows/lib_compat.h
           cmake: >-
-            "-DCMAKE_C_COMPILER=clang-10"
-            "-DCMAKE_CXX_COMPILER=clang++-10"
+            "-DCMAKE_C_COMPILER=clang"
+            "-DCMAKE_CXX_COMPILER=clang++"
             "-DCMAKE_EXE_LINKER_FLAGS_RELEASE=-static-libgcc -Wl,--compress-debug-sections=zlib"
             "-DLLVM_STATIC_LINK_CXX_STDLIB=ON"
             "-DLLVM_ENABLE_ZLIB=FORCE_ON"
@@ -246,25 +245,25 @@ jobs:
     container: ${{ matrix.config.container }}
     steps:
     - name: Clone scripts
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with: { ref: master }
     - name: Install tools
       run: ${{ matrix.config.preinstall }}
     # Visual Studio tools require a bunch of environment variables to be set.
-    # Run vcvars64.bat and re-export the current environment to the workflow.
+    # Run vcvarsall.bat and re-export the current environment to the workflow.
     # (It'd be nice to only export the variables that *changed*, oh well).
     - name: Visual Studio environment
       if: startsWith(matrix.config.name, 'windows')
       shell: powershell
       run: |
-        cmd /c "`"${{ matrix.config.vcvars }}`">NUL && set" | Foreach-Object {
+        cmd /c "`"${{ matrix.config.vcvars }}`" ${{ matrix.config.vcvars_arch }}>NUL && set" | Foreach-Object {
           $name, $value = $_ -split '=', 2
           if ($value) {
             echo "$($name)=$($value)" >> $env:GITHUB_ENV
           }
         }
     - name: Clone gRPC
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
         repository: grpc/grpc
         path: grpc
@@ -316,7 +315,7 @@ jobs:
         echo "CLANGD_DIR=clangd_${{ env.TAG_NAME }}" >> $GITHUB_ENV
       shell: bash
     - name: Clone LLVM
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
         repository: ${{ env.LLVM_REPO }}
         path: llvm-project
