@@ -238,7 +238,8 @@ jobs:
             "-DLLVM_STATIC_LINK_CXX_STDLIB=ON"
             "-DLLVM_ENABLE_ZLIB=FORCE_ON"
             "-DCMAKE_PROJECT_INCLUDE=$GITHUB_WORKSPACE/.github/workflows/linux-static-deps.cmake"
-          grpc_version: v1.36.3
+            "-Dabsl_DIR=$HOME/grpc-installation/lib/cmake/absl"
+          grpc_version: v1.54.3
           grpc_cmake: >-
             "-DgRPC_CARES_PROVIDER=package"
     runs-on: ${{ matrix.config.runner }}
@@ -283,6 +284,7 @@ jobs:
         "-DgRPC_BUILD_CSHARP_EXT=OFF"
         "-DCMAKE_INSTALL_PREFIX=$HOME/grpc-installation"
         "-DCMAKE_BUILD_TYPE=Release"
+        "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
         "-DCMAKE_C_FLAGS_RELEASE=${{ matrix.config.cflags }}"
         "-DCMAKE_CXX_FLAGS_RELEASE=${{ matrix.config.cflags }}"
         ${{ matrix.config.grpc_cmake }} ${{ matrix.config.cmake }}
